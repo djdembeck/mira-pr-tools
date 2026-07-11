@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-fmt:
+    name: Go fmt
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "::error::Unformatted files:$out"
+            exit 1
+          fi
+
+  go-vet:
+    name: Go vet
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+
+  go-lint:
+    name: Go lint
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+
+  go-mod-tidy:
+    name: Go mod tidy check
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go mod tidy
+      - name: Check for drift
+        run: |
+          if ! git diff --exit-code -- go.mod go.sum; then
+            echo "::error::go.mod/go.sum are out of date. Run 'go mod tidy' and commit."
+            exit 1
+          fi
+
+  go-static:
+    name: Go static checks
+    runs-on: self-hosted
+    needs: [go-fmt, go-vet, go-lint, go-mod-tidy]
+    if: always()
+    steps:
+      - name: All static checks passed
+        run: |
+          if [[ "${{ needs.go-fmt.result }}" == "failure" || \
+                "${{ needs.go-vet.result }}" == "failure" || \
+                "${{ needs.go-lint.result }}" == "failure" || \
+                "${{ needs.go-mod-tidy.result }}" == "failure" ]]; then
+            echo "::error::Static checks failed, skipping build/test"
+            exit 1
+          fi
+
+  go-build:
+    name: Go build
+    needs: go-static
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: make build
+
+  go-test:
+    name: Go test
+    needs: go-static
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test with race detector
+        run: go test -race -count=1 ./...
+
+  conventional-commits:
+    name: Conventional commits
+    if: github.event_name == 'pull_request'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+      - uses: webiny/action-conventional-commits@v1.3.0
+
+  ci-gate:
+    name: CI gate
+    if: always()
+    runs-on: self-hosted
+    needs:
+      - go-static
+      - go-build
+      - go-test
+      - conventional-commits
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.go-static.result }}" == "failure" || \
+                "${{ needs.go-build.result }}" == "failure" || \
+                "${{ needs.go-test.result }}" == "failure" || \
+                "${{ needs.conventional-commits.result }}" == "failure" ]]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi

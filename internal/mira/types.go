@@ -25,8 +25,8 @@ const (
 type RawComment struct {
 	ID            string  `json:"id"`
 	Body          string  `json:"body"`
-	Path          *string `json:"path"`       // null if missing
-	Line          *int    `json:"line"`       // null if missing
+	Path          *string `json:"path"` // null if missing
+	Line          *int    `json:"line"` // null if missing
 	StartLine     *int    `json:"startLine"`
 	DiffHunk      *string `json:"diffHunk"`
 	Author        string  `json:"author"`
@@ -50,10 +50,10 @@ type ParsedComment struct {
 	Title         string   `json:"title"`
 	Body          string   `json:"body"`
 	Suggestion    *string  `json:"suggestion"`  // null when absent
-	AgentPrompt   *string  `json:"agentPrompt"`  // null when absent
-	DiffHunk      *string  `json:"diffHunk"`     // null when absent
+	AgentPrompt   *string  `json:"agentPrompt"` // null when absent
+	DiffHunk      *string  `json:"diffHunk"`    // null when absent
 	IsResolved    bool     `json:"isResolved"`
-	CreatedAt     *string  `json:"createdAt"`     // null when absent
+	CreatedAt     *string  `json:"createdAt"` // null when absent
 	ThreadReplies int      `json:"threadReplies"`
 }
 
@@ -82,17 +82,17 @@ type ghReplyTo struct {
 
 // ghCommentNode is a single comment inside a review thread.
 type ghCommentNode struct {
-	DatabaseID       json.Number `json:"databaseId"`
-	Body             string      `json:"body"`
-	Author           *ghAuthor   `json:"author"`
-	Path             *string     `json:"path"`
-	Line             *int        `json:"line"`
-	OriginalLine     *int        `json:"originalLine"`
-	StartLine        *int        `json:"startLine"`
-	OriginalStartLine *int       `json:"originalStartLine"`
-	DiffHunk         *string     `json:"diffHunk"`
-	CreatedAt        *string     `json:"createdAt"`
-	ReplyTo          *ghReplyTo  `json:"replyTo"`
+	DatabaseID        json.Number `json:"databaseId"`
+	Body              string      `json:"body"`
+	Author            *ghAuthor   `json:"author"`
+	Path              *string     `json:"path"`
+	Line              *int        `json:"line"`
+	OriginalLine      *int        `json:"originalLine"`
+	StartLine         *int        `json:"startLine"`
+	OriginalStartLine *int        `json:"originalStartLine"`
+	DiffHunk          *string     `json:"diffHunk"`
+	CreatedAt         *string     `json:"createdAt"`
+	ReplyTo           *ghReplyTo  `json:"replyTo"`
 }
 
 // ghComments wraps the GraphQL comments connection.
@@ -130,7 +130,7 @@ type ghData struct {
 
 // graphQLResponse is the top-level GitHub GraphQL response.
 type graphQLResponse struct {
-	Data   *ghData         `json:"data"`
+	Data   *ghData        `json:"data"`
 	Errors []graphQLError `json:"errors"`
 }
 
@@ -148,17 +148,17 @@ type forgejoUser struct {
 
 // forgejoComment is a single Forgejo review comment.
 type forgejoComment struct {
-	ID           json.Number `json:"id"`
-	Body         string      `json:"body"`
-	User          forgejoUser `json:"user"`
-	DiffHunk      *string     `json:"diff_hunk"`
-	Diff          *string     `json:"diff"`
-	InReplyToID  *int64       `json:"in_reply_to_id"`
-	Path         *string      `json:"path"`
-	Line         *int         `json:"line"`
-	StartLine    *int         `json:"start_line"`
-	CreatedAt    *string      `json:"created_at"`
-	Resolved     bool         `json:"resolved"`
+	ID          json.Number `json:"id"`
+	Body        string      `json:"body"`
+	User        forgejoUser `json:"user"`
+	DiffHunk    *string     `json:"diff_hunk"`
+	Diff        *string     `json:"diff"`
+	InReplyToID *int64      `json:"in_reply_to_id"`
+	Path        *string     `json:"path"`
+	Line        *int        `json:"line"`
+	StartLine   *int        `json:"start_line"`
+	CreatedAt   *string     `json:"created_at"`
+	Resolved    bool        `json:"resolved"`
 }
 
 // forgejoReview is a single Forgejo review (holds an id + author).

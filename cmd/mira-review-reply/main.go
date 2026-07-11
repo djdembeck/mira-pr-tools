@@ -14,11 +14,11 @@ import (
 type action string
 
 const (
-	actionReject            action = "reject"
-	actionAcknowledge       action = "acknowledge"
-	actionBatchReject       action = "batch-reject"
-	actionBatchAcknowledge  action = "batch-acknowledge"
-	actionDetectBot         action = "detect-bot"
+	actionReject           action = "reject"
+	actionAcknowledge      action = "acknowledge"
+	actionBatchReject      action = "batch-reject"
+	actionBatchAcknowledge action = "batch-acknowledge"
+	actionDetectBot        action = "detect-bot"
 )
 
 type args struct {

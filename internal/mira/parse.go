@@ -10,7 +10,7 @@ import (
 var SeverityMap = map[string]Severity{
 	"⛔":  SeverityBlocker,
 	"🛑":  SeverityBlocker,
-	"⚠️":  SeverityWarning,
+	"⚠️": SeverityWarning,
 	"💡":  SeveritySuggestion,
 	"💬":  SeverityNitpick,
 }

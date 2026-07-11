@@ -35,10 +35,10 @@ func DetectPlatform(remote string) Platform {
 }
 
 var (
-	reGitAt      = regexp.MustCompile(`^git@[^:]+:`)
-	reSSHPort    = regexp.MustCompile(`^ssh://git@[^:]+:\d+/`)
+	reGitAt       = regexp.MustCompile(`^git@[^:]+:`)
+	reSSHPort     = regexp.MustCompile(`^ssh://git@[^:]+:\d+/`)
 	reHTTPSPrefix = regexp.MustCompile(`^https?://[^/]+/`)
-	reGitSuffix  = regexp.MustCompile(`\.git$`)
+	reGitSuffix   = regexp.MustCompile(`\.git$`)
 )
 
 // ParseRemoteRepo extracts the owner and repo from a git remote URL. Supports

@@ -1,0 +1,30 @@
+repos:
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: Go fmt
+        entry: bash -c 'out=$(gofmt -l .) && if [ -n "$out" ]; then echo "Unformatted files:$out" && exit 1; fi'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-mod-tidy
+        name: Go mod tidy
+        entry: bash -c 'go mod tidy && git diff --exit-code -- go.mod go.sum'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-vet
+        name: Go vet
+        entry: go vet ./...
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: Golangci lint
+        entry: golangci-lint run ./...
+        language: system
+        types: [go]
+        pass_filenames: false

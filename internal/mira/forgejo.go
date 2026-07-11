@@ -32,21 +32,20 @@ func forgejoRequest(method, endpoint string, body []byte) (string, error) {
 	}
 	req, err := http.NewRequest(method, u, reader)
 	if err != nil {
-		return "", fmt.Errorf("build Forgejo request: %w", err)
+		return "", fmt.Errorf("build forgejo request: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("Forgejo API request failed: %w", err)
+		return "", fmt.Errorf("forgejo API request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("read Forgejo response: %w", err)
+		return "", fmt.Errorf("read forgejo response: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -55,7 +54,7 @@ func forgejoRequest(method, endpoint string, body []byte) (string, error) {
 		if json.Unmarshal(respBody, &e) == nil && e.Message != "" {
 			msg = e.Message
 		}
-		return "", fmt.Errorf("Forgejo API error (%d): %s", resp.StatusCode, msg)
+		return "", fmt.Errorf("forgejo API error (%d): %s", resp.StatusCode, msg)
 	}
 	return string(respBody), nil
 }
