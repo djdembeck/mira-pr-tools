@@ -10,7 +10,32 @@ Mira's review bot posts comments on PRs, but there's no programmatic way for AI 
 
 Active — two standalone Go binaries, zero external Go dependencies.
 
-## Build
+## Install
+
+```bash
+go install github.com/djdembeck/mira-pr-tools/cmd/mira-review-parser@latest
+go install github.com/djdembeck/mira-pr-tools/cmd/mira-review-reply@latest
+```
+
+Pins to a specific version:
+
+```bash
+go install github.com/djdembeck/mira-pr-tools/cmd/mira-review-parser@v1.0.0
+go install github.com/djdembeck/mira-pr-tools/cmd/mira-review-reply@v1.0.0
+```
+
+Binaries land in `$GOPATH/bin` (default `~/go/bin`). Make sure that's on your `$PATH`.
+
+### Updating
+
+```bash
+go install github.com/djdembeck/mira-pr-tools/cmd/mira-review-parser@latest
+go install github.com/djdembeck/mira-pr-tools/cmd/mira-review-reply@latest
+```
+
+There is no automatic update mechanism. Check [GitHub Releases](https://github.com/djdembeck/mira-pr-tools/releases) for changelogs.
+
+### Building locally
 
 ```bash
 make build
