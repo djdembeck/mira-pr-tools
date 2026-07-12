@@ -71,7 +71,7 @@ func ParseTitle(body string) string {
 	lines := strings.Split(body, "\n")
 	for i := 2; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])
-		if strings.HasPrefix(line, "**") && strings.HasSuffix(line, "**") &&
+		if len(line) >= 4 && strings.HasPrefix(line, "**") && strings.HasSuffix(line, "**") &&
 			!strings.HasPrefix(line, "**Fix") && !strings.HasPrefix(line, "**Note") {
 			return strings.TrimSpace(line[2 : len(line)-2])
 		}
@@ -140,6 +140,14 @@ func firstNonNilInt(a, b *int) *int {
 		return a
 	}
 	return b
+}
+
+// FallbackID returns id as-is when non-empty, or "?" as a fallback.
+func FallbackID(id string) string {
+	if id == "" {
+		return "?"
+	}
+	return id
 }
 
 // ParseMiraComment assembles a ParsedComment from a RawComment, deriving all

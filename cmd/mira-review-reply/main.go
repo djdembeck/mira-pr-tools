@@ -200,10 +200,11 @@ func readBatchFile(path string, out interface{}) {
 }
 
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n]
+	return string(runes[:n])
 }
 
 func main() {
@@ -295,7 +296,7 @@ func main() {
 		for _, entry := range entries {
 			if entry.ID == "" || entry.Reason == "" {
 				results = append(results, mira.ReplyResult{
-					CommentID: fallbackID(entry.ID),
+					CommentID: mira.FallbackID(entry.ID),
 					Action:    "reject",
 					Body:      "",
 					Success:   false,
@@ -381,11 +382,4 @@ func main() {
 	if failed > 0 {
 		os.Exit(1)
 	}
-}
-
-func fallbackID(id string) string {
-	if id == "" {
-		return "?"
-	}
-	return id
 }

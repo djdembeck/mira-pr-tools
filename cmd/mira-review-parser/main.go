@@ -39,10 +39,19 @@ func main() {
 				if f == "json" || f == "consensus" {
 					format = f
 					i++
+				} else {
+					fmt.Fprintf(os.Stderr, "Error: --format must be 'json' or 'consensus', got '%s'\n", f)
+					os.Exit(1)
 				}
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --format requires a value")
+				os.Exit(1)
 			}
 		case "--include-resolved":
 			includeResolved = true
+		default:
+			fmt.Fprintf(os.Stderr, "Error: unknown flag '%s'\n", args[i])
+			os.Exit(1)
 		}
 	}
 

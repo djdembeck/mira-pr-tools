@@ -52,7 +52,7 @@ func runGh(args []string) (string, error) {
 		}
 		return "", fmt.Errorf("gh command failed: %s", msg)
 	}
-	return stdout.String(), nil
+	return strings.TrimSpace(stdout.String()), nil
 }
 
 // FetchGitHubComments fetches all review-thread comments for the given PR via
@@ -208,26 +208,11 @@ func DetectGitHubBotName(owner, repo string, prNumber int) (string, error) {
 	if err != nil {
 		return "miracodeai-bot", nil
 	}
-	var resp struct {
-		Data struct {
-			Repository struct {
-				PullRequest struct {
-					ReviewThreads struct {
-						Nodes []struct {
-							Comments struct {
-								Nodes []struct {
-									Author *struct {
-										Login string `json:"login"`
-									} `json:"author"`
-								} `json:"nodes"`
-							} `json:"comments"`
-						} `json:"nodes"`
-					} `json:"reviewThreads"`
-				} `json:"pullRequest"`
-			} `json:"repository"`
-		} `json:"data"`
-	}
+	var resp graphQLResponse
 	if err := json.Unmarshal([]byte(output), &resp); err != nil {
+		return "miracodeai-bot", nil
+	}
+	if resp.Data == nil || resp.Data.Repository == nil || resp.Data.Repository.PullRequest == nil {
 		return "miracodeai-bot", nil
 	}
 	for _, thread := range resp.Data.Repository.PullRequest.ReviewThreads.Nodes {
