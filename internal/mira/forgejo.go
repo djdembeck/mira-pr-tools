@@ -10,14 +10,30 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
+
+// forgejoEnv reads FORGEJO_URL and FORGEJO_TOKEN. Overridable in tests to avoid
+// data races on os.Setenv/os.Getenv when tests run concurrently.
+var forgejoEnv func() (baseURL, token string) = func() (string, string) {
+	return os.Getenv("FORGEJO_URL"), os.Getenv("FORGEJO_TOKEN")
+}
+
+// forgejoEnvMu protects forgejoEnv from concurrent reads/writes.
+var forgejoEnvMu sync.RWMutex
+
+// getForgejoEnv returns the current Forgejo base URL and token.
+func getForgejoEnv() (string, string) {
+	forgejoEnvMu.RLock()
+	defer forgejoEnvMu.RUnlock()
+	return forgejoEnv()
+}
 
 // forgejoRequest performs an HTTP request against the Forgejo API using the
 // FORGEJO_URL and FORGEJO_TOKEN env vars. method is the HTTP verb, endpoint is
 // the path after /api/v1/. body may be nil for GET requests.
 func forgejoRequest(method, endpoint string, body []byte) (string, error) {
-	baseURL := os.Getenv("FORGEJO_URL")
-	token := os.Getenv("FORGEJO_TOKEN")
+	baseURL, token := getForgejoEnv()
 	if baseURL == "" || token == "" {
 		return "", fmt.Errorf("FORGEJO_URL and FORGEJO_TOKEN must be set for Forgejo repos")
 	}
