@@ -5,24 +5,26 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 )
 
-// setTestEnv configures FORGEJO_URL and FORGEJO_TOKEN for the duration of
-// the test and restores the original values on test completion.
+// setTestEnv overrides the forgejoEnv closure for the duration of the test.
+// Thread-safe — no data race with concurrent tests or production code.
 func setTestEnv(t *testing.T, srv *httptest.Server) {
 	t.Helper()
-	origURL := os.Getenv("FORGEJO_URL")
-	origToken := os.Getenv("FORGEJO_TOKEN")
-	os.Setenv("FORGEJO_URL", srv.URL)
-	os.Setenv("FORGEJO_TOKEN", "test-token")
+	forgejoEnvMu.Lock()
+	orig := forgejoEnv
+	forgejoEnv = func() (string, string) {
+		return srv.URL, "test-token"
+	}
+	forgejoEnvMu.Unlock()
 	t.Cleanup(func() {
-		os.Setenv("FORGEJO_URL", origURL)
-		os.Setenv("FORGEJO_TOKEN", origToken)
+		forgejoEnvMu.Lock()
+		forgejoEnv = orig
+		forgejoEnvMu.Unlock()
 	})
 }
 
