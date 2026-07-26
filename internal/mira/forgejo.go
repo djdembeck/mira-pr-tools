@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 )
@@ -144,16 +143,16 @@ func FetchForgejoComments(owner, repo string, prNumber int) ([]RawComment, error
 	return allComments, nil
 }
 
-// findForgejoReviewIDForComment returns the review ID that owns the comment
-// with the given comment ID by iterating over the PR's reviews.
-func findForgejoReviewIDForComment(owner, repo string, prNumber int, commentID string) (string, error) {
+// findForgejoReviewIDForComment returns the review ID and the matched comment
+// for the given comment ID by iterating over the PR's reviews.
+func findForgejoReviewIDForComment(owner, repo string, prNumber int, commentID string) (string, forgejoComment, error) {
 	reviewsRaw, err := forgejoGet(fmt.Sprintf("repos/%s/%s/pulls/%d/reviews", owner, repo, prNumber))
 	if err != nil {
-		return "", err
+		return "", forgejoComment{}, err
 	}
 	var reviews []forgejoReview
 	if err := json.Unmarshal([]byte(reviewsRaw), &reviews); err != nil {
-		return "", fmt.Errorf("parse Forgejo reviews: %w", err)
+		return "", forgejoComment{}, fmt.Errorf("parse Forgejo reviews: %w", err)
 	}
 
 	for _, review := range reviews {
@@ -171,20 +170,19 @@ func findForgejoReviewIDForComment(owner, repo string, prNumber int, commentID s
 		}
 		for _, c := range comments {
 			if c.ID.String() == commentID {
-				return reviewID, nil
+				return reviewID, c, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("comment %s not found in any review on PR %d", commentID, prNumber)
+	return "", forgejoComment{}, fmt.Errorf("comment %s not found in any review on PR %d", commentID, prNumber)
 }
 
 // forgejoTryReply attempts to post a reply to a Forgejo review comment.
 // It tries strategies in order:
-//  1. GitHub-compatible /comments/{id}/replies endpoint (threaded)
-//  2. /reviews/{review_id}/comments with root_id (threaded, older servers)
-//  3. /reviews/{review_id}/comments without root_id (top-level review comment)
-//  4. /issues/{pr}/comments as issue comment (avoids blame bugs on new files)
-func forgejoTryReply(owner, repo string, prNumber int, commentID, body, reviewID string) (ReplyResult, error) {
+//  1. GitHub-compatible /comments/{id}/replies endpoint (threaded, Gitea 1.24+)
+//  2. /reviews/{id}/comments with path+position (threaded, current fix)
+//  3. /issues/{pr}/comments as issue comment (fallback for summary comments)
+func forgejoTryReply(owner, repo string, prNumber int, commentID, body, reviewID string, parent forgejoComment) (ReplyResult, error) {
 	// 1. Try the GitHub-compatible reply endpoint (Gitea 1.24+)
 	payload, _ := json.Marshal(map[string]string{"body": body})
 	output, err := forgejoPost(fmt.Sprintf("repos/%s/%s/pulls/%d/comments/%s/replies", owner, repo, prNumber, commentID), payload)
@@ -192,25 +190,23 @@ func forgejoTryReply(owner, repo string, prNumber int, commentID, body, reviewID
 		return parseForgejoReplyResponse(output)
 	}
 
-	// 2. Try root_id fallback (older Gitea/Forgejo)
-	if reviewID != "" {
-		commentIDInt, parseErr := strconv.ParseInt(commentID, 10, 64)
-		if parseErr == nil {
-			rootPayload, _ := json.Marshal(map[string]any{"body": body, "root_id": commentIDInt})
-			output, err := forgejoPost(fmt.Sprintf("repos/%s/%s/pulls/%d/reviews/%s/comments", owner, repo, prNumber, reviewID), rootPayload)
-			if err == nil {
-				return parseForgejoReplyResponse(output)
-			}
+	// 2. Try threaded review comment with path+position
+	if reviewID != "" && parent.Path != nil && *parent.Path != "" && (parent.Position > 0 || parent.OriginalPosition > 0) {
+		reviewPayload := map[string]any{"body": body, "path": *parent.Path}
+		if parent.Position > 0 {
+			reviewPayload["new_position"] = parent.Position
 		}
-
-		// 3. Top-level review comment
-		output, err = forgejoPost(fmt.Sprintf("repos/%s/%s/pulls/%d/reviews/%s/comments", owner, repo, prNumber, reviewID), payload)
+		if parent.OriginalPosition > 0 {
+			reviewPayload["old_position"] = parent.OriginalPosition
+		}
+		reviewPayloadBytes, _ := json.Marshal(reviewPayload)
+		output, err := forgejoPost(fmt.Sprintf("repos/%s/%s/pulls/%d/reviews/%s/comments", owner, repo, prNumber, reviewID), reviewPayloadBytes)
 		if err == nil {
 			return parseForgejoReplyResponse(output)
 		}
 	}
 
-	// 4. Issue comment fallback (avoids blame bugs on PRs with new files)
+	// 3. Issue comment fallback (for summary comments or when strategy 2 failed)
 	output, err = forgejoPost(fmt.Sprintf("repos/%s/%s/issues/%d/comments", owner, repo, prNumber), payload)
 	if err != nil {
 		return ReplyResult{Success: false, Error: err.Error()}, nil
@@ -227,10 +223,16 @@ func forgejoTryReply(owner, repo string, prNumber int, commentID, body, reviewID
 // parseForgejoReplyResponse extracts a ReplyResult from a successful Forgejo response.
 func parseForgejoReplyResponse(output string) (ReplyResult, error) {
 	var resp struct {
-		URL string `json:"url"`
+		HTMLURL string `json:"html_url"`
+		URL     string `json:"url"`
 	}
-	if json.Unmarshal([]byte(output), &resp) == nil && resp.URL != "" {
-		return ReplyResult{Success: true, ReplyURL: resp.URL}, nil
+	if json.Unmarshal([]byte(output), &resp) == nil {
+		if resp.HTMLURL != "" {
+			return ReplyResult{Success: true, ReplyURL: resp.HTMLURL}, nil
+		}
+		if resp.URL != "" {
+			return ReplyResult{Success: true, ReplyURL: resp.URL}, nil
+		}
 	}
 	return ReplyResult{Success: true}, nil
 }
@@ -242,13 +244,13 @@ func PostForgejoReply(owner, repo string, prNumber int, commentID, body string, 
 		return ReplyResult{Success: true}, nil
 	}
 
-	reviewID, err := findForgejoReviewIDForComment(owner, repo, prNumber, commentID)
+	reviewID, parent, err := findForgejoReviewIDForComment(owner, repo, prNumber, commentID)
 	if err != nil {
 		// Still try without review ID — reply endpoint doesn't need it
-		return forgejoTryReply(owner, repo, prNumber, commentID, body, "")
+		return forgejoTryReply(owner, repo, prNumber, commentID, body, "", forgejoComment{})
 	}
 
-	return forgejoTryReply(owner, repo, prNumber, commentID, body, reviewID)
+	return forgejoTryReply(owner, repo, prNumber, commentID, body, reviewID, parent)
 }
 
 // DetectForgejoBotName inspects the PR's review authors for a Mira bot and
