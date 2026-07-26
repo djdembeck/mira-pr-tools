@@ -191,13 +191,22 @@ func forgejoTryReply(owner, repo string, prNumber int, commentID, body, reviewID
 	}
 
 	// 2. Try threaded review comment with path+position
-	if reviewID != "" && parent.Path != nil && *parent.Path != "" && (parent.Position > 0 || parent.OriginalPosition > 0) {
+	// Fallback: map Line/StartLine to Position/OriginalPosition if the API didn't return them
+	pos := parent.Position
+	origPos := parent.OriginalPosition
+	if pos == 0 && parent.Line != nil {
+		pos = *parent.Line
+	}
+	if origPos == 0 && parent.StartLine != nil {
+		origPos = *parent.StartLine
+	}
+	if reviewID != "" && parent.Path != nil && *parent.Path != "" && (pos > 0 || origPos > 0) {
 		reviewPayload := map[string]any{"body": body, "path": *parent.Path}
-		if parent.Position > 0 {
-			reviewPayload["new_position"] = parent.Position
+		if pos > 0 {
+			reviewPayload["new_position"] = pos
 		}
-		if parent.OriginalPosition > 0 {
-			reviewPayload["old_position"] = parent.OriginalPosition
+		if origPos > 0 {
+			reviewPayload["old_position"] = origPos
 		}
 		reviewPayloadBytes, _ := json.Marshal(reviewPayload)
 		output, err := forgejoPost(fmt.Sprintf("repos/%s/%s/pulls/%d/reviews/%s/comments", owner, repo, prNumber, reviewID), reviewPayloadBytes)

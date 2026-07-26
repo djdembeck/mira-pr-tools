@@ -79,8 +79,7 @@ func TestForgejoTryReplySucceedsOnFirstAttempt(t *testing.T) {
 
 	setTestEnv(t, srv)
 
-	pStr := func(s string) *string { return &s }
-	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: pStr("f.go"), Position: 513})
+	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: stringPtr("f.go"), Position: 513})
 	err.check(t)
 	if testErr != nil {
 		t.Fatalf("unexpected error: %v", testErr)
@@ -129,8 +128,7 @@ func TestForgejoTryReplyFallsBackToThreadedReviewComment(t *testing.T) {
 
 	setTestEnv(t, srv)
 
-	pStr := func(s string) *string { return &s }
-	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: pStr("f.go"), Position: 513})
+	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: stringPtr("f.go"), Position: 513})
 	err.check(t)
 	if testErr != nil {
 		t.Fatalf("unexpected error: %v", testErr)
@@ -176,8 +174,7 @@ func TestForgejoTryReplyFallsBackToIssueComment(t *testing.T) {
 
 	setTestEnv(t, srv)
 
-	pStr := func(s string) *string { return &s }
-	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: pStr("f.go"), Position: 513})
+	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: stringPtr("f.go"), Position: 513})
 	err.check(t)
 	if testErr != nil {
 		t.Fatalf("unexpected error: %v", testErr)
@@ -195,6 +192,99 @@ func TestForgejoTryReplyFallsBackToIssueComment(t *testing.T) {
 	}
 	if result.ReplyURL != "https://example.com/issue/1" {
 		t.Fatalf("expected url https://example.com/issue/1, got %q", result.ReplyURL)
+	}
+}
+
+// TestForgejoTryReplySkipsStrategy2WithEmptyParent verifies that when parent
+// has no Path or Position, strategy 2 is skipped and strategy 3 is used.
+func TestForgejoTryReplySkipsStrategy2WithEmptyParent(t *testing.T) {
+	var repliesHit, reviewsHit, issuesHit atomic.Bool
+	var err captureError
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/repos/owner/repo/pulls/42/comments/100/replies":
+			repliesHit.Store(true)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write([]byte(`{"message":"nope"}`))
+		case "/api/v1/repos/owner/repo/pulls/42/reviews/50/comments":
+			// Strategy 2 should NOT be hit
+			reviewsHit.Store(true)
+			err.fatal("strategy 2 should have been skipped")
+			http.Error(w, "should not reach", http.StatusBadRequest)
+		case "/api/v1/repos/owner/repo/issues/42/comments":
+			issuesHit.Store(true)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"html_url": "https://example.com/issue/2"})
+		default:
+			err.fatal("unexpected path: %s", r.URL.Path)
+			http.Error(w, "bad path", http.StatusBadRequest)
+		}
+	}))
+	defer srv.Close()
+
+	setTestEnv(t, srv)
+
+	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{})
+	err.check(t)
+	if testErr != nil {
+		t.Fatalf("unexpected error: %v", testErr)
+	}
+	if !repliesHit.Load() {
+		t.Fatal("strategy 1 (comments/replies) was not attempted")
+	}
+	if reviewsHit.Load() {
+		t.Fatal("strategy 2 should have been skipped with empty parent")
+	}
+	if !issuesHit.Load() {
+		t.Fatal("strategy 3 (issues/comments) was not attempted")
+	}
+	if !result.Success {
+		t.Fatalf("expected success, got Success=%v Error=%q", result.Success, result.Error)
+	}
+	if result.ReplyURL != "https://example.com/issue/2" {
+		t.Fatalf("expected url https://example.com/issue/2, got %q", result.ReplyURL)
+	}
+}
+
+// TestForgejoTryReplyWithOriginalPositionOnly verifies that when only
+// OriginalPosition is set (Position=0), strategy 2 sends old_position but not new_position.
+func TestForgejoTryReplyWithOriginalPositionOnly(t *testing.T) {
+	var strategy2Payload map[string]any
+	var err captureError
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/repos/owner/repo/pulls/42/comments/100/replies":
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write([]byte(`{"message":"method not allowed"}`))
+		case "/api/v1/repos/owner/repo/pulls/42/reviews/50/comments":
+			strategy2Payload = map[string]any{}
+			_ = json.NewDecoder(r.Body).Decode(&strategy2Payload)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"html_url": "https://example.com/reply/400"})
+		default:
+			err.fatal("unexpected path: %s", r.URL.Path)
+			http.Error(w, "bad path", http.StatusBadRequest)
+		}
+	}))
+	defer srv.Close()
+
+	setTestEnv(t, srv)
+
+	result, testErr := forgejoTryReply("owner", "repo", 42, "100", "test reply", "50", forgejoComment{Path: stringPtr("f.go"), OriginalPosition: 400})
+	err.check(t)
+	if testErr != nil {
+		t.Fatalf("unexpected error: %v", testErr)
+	}
+	if !result.Success {
+		t.Fatal("expected success")
+	}
+	if _, ok := strategy2Payload["old_position"]; !ok {
+		t.Fatal("expected old_position in payload when only OriginalPosition is set")
+	}
+	if _, ok := strategy2Payload["new_position"]; ok {
+		t.Fatal("expected NO new_position in payload when Position is 0")
 	}
 }
 
