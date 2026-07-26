@@ -109,7 +109,10 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
+      - name: Test
+        run: go test -count=1 ./...
       - name: Test with race detector
+        if: matrix.os != 'macos-latest'
         run: go test -race -count=1 ./...
 
   codeql:
