@@ -197,9 +197,8 @@ func forgejoTryReply(owner, repo string, prNumber int, commentID, body, reviewID
 	if pos == 0 && parent.Line != nil {
 		pos = *parent.Line
 	}
-	if origPos == 0 && parent.StartLine != nil {
-		origPos = *parent.StartLine
-	}
+	// Do not fall back to StartLine for old_position:
+	// start_line is a new-file range start, not an old-file line.
 	if reviewID != "" && parent.Path != nil && *parent.Path != "" && (pos > 0 || origPos > 0) {
 		reviewPayload := map[string]any{"body": body, "path": *parent.Path}
 		if pos > 0 {
