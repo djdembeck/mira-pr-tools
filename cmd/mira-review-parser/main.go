@@ -1,16 +1,18 @@
 // Command mira-review-parser fetches PR review comments from GitHub or
-// Forgejo, filters to Mira bot root comments, and parses them into structured
-// data (JSON or consensus markdown).
+// Forgejo, filters to root comments from Mira bots plus any additional
+// configured authors, and parses them into structured data (JSON or consensus
+// markdown).
 //
 // Usage:
 //
-//	mira-review-parser <pr-number> [--format json|consensus] [--include-resolved]
+//	mira-review-parser <pr-number> [--format json|consensus] [--include-resolved] [--additional-authors <csv>]
 package main
 
 import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/djdembeck/mira-pr-tools/internal/mira"
 )
@@ -18,7 +20,7 @@ import (
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "Usage: mira-review-parser <pr-number> [--format json|consensus] [--include-resolved]")
+		fmt.Fprintln(os.Stderr, "Usage: mira-review-parser <pr-number> [--format json|consensus] [--include-resolved] [--additional-authors <csv>]")
 		os.Exit(1)
 	}
 
@@ -30,9 +32,22 @@ func main() {
 
 	format := "json"
 	includeResolved := false
+	var additionalAuthors []string
 
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
+		case "--additional-authors":
+			if i+1 < len(args) {
+				for _, a := range strings.Split(args[i+1], ",") {
+					if a = strings.TrimSpace(a); a != "" {
+						additionalAuthors = append(additionalAuthors, a)
+					}
+				}
+				i++
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --additional-authors requires a non-empty value")
+				os.Exit(1)
+			}
 		case "--format":
 			if i+1 < len(args) {
 				f := args[i+1]
@@ -83,8 +98,8 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "- Fetched %d total review comments\n", len(rawComments))
 
-	miraRoots := mira.FilterMiraRootComments(rawComments)
-	fmt.Fprintf(os.Stderr, "- Found %d Mira root comments\n", len(miraRoots))
+	miraRoots := mira.FilterMiraRootComments(rawComments, additionalAuthors...)
+	fmt.Fprintf(os.Stderr, "- Found %d review root comments\n", len(miraRoots))
 
 	parsed := make([]mira.ParsedComment, 0, len(miraRoots))
 	for _, c := range miraRoots {
