@@ -38,10 +38,26 @@ func main() {
 		switch args[i] {
 		case "--additional-authors":
 			if i+1 < len(args) {
-				for _, a := range strings.Split(args[i+1], ",") {
+				val := args[i+1]
+				// GitHub/Forgejo logins cannot start with "-", so reject
+				// "--"-prefixed tokens to catch misplaced flags.
+				if strings.HasPrefix(val, "--") {
+					fmt.Fprintf(os.Stderr, "Error: --additional-authors got flag-shaped value '%s', expected CSV of author logins\n", val)
+					os.Exit(1)
+				}
+				prev := len(additionalAuthors)
+				for _, a := range strings.Split(val, ",") {
 					if a = strings.TrimSpace(a); a != "" {
+						if strings.HasPrefix(a, "--") {
+							fmt.Fprintf(os.Stderr, "Error: --additional-authors got flag-shaped author '%s', expected login\n", a)
+							os.Exit(1)
+						}
 						additionalAuthors = append(additionalAuthors, a)
 					}
+				}
+				if len(additionalAuthors) == prev {
+					fmt.Fprintln(os.Stderr, "Error: --additional-authors requires a non-empty value")
+					os.Exit(1)
 				}
 				i++
 			} else {
