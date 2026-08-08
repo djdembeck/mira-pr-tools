@@ -47,16 +47,18 @@ Produces `bin/mira-review-parser` and `bin/mira-review-reply`.
 
 ### mira-review-parser
 
-Fetches PR review comments from GitHub or Forgejo, filters to Mira bot root
-comments, and parses them into structured data.
+Fetches PR review comments from GitHub or Forgejo, filters to root comments
+from Mira bots plus any additional configured authors, and parses them into
+structured data.
 
 ```
-mira-review-parser <pr-number> [--format json|consensus] [--include-resolved]
+mira-review-parser <pr-number> [--format json|consensus] [--include-resolved] [--additional-authors <csv>]
 ```
 
 - `--format json` (default): `ParsedComment[]` JSON array
 - `--format consensus`: markdown summary grouped by file (alphabetically sorted)
 - `--include-resolved`: include resolved threads (default: open only)
+- `--additional-authors <csv>`: augment the default Mira-bot author filter with more reviewer logins, e.g. `--additional-authors nimuebot`. JSON output includes `author` and `isMira` for each parsed comment.
 
 JSON output schema — every field always present:
 
@@ -70,6 +72,8 @@ JSON output schema — every field always present:
   "severity": "blocker",
   "title": "Missing null check",
   "body": "...",
+  "author": "miracodeai-bot",
+  "isMira": true,
   "suggestion": null,
   "agentPrompt": null,
   "diffHunk": null,

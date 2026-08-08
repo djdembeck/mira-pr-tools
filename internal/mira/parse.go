@@ -178,6 +178,8 @@ func ParseMiraComment(comment RawComment) ParsedComment {
 		Category:      ParseCategory(comment.Body),
 		Severity:      ParseSeverity(comment.Body),
 		Title:         ParseTitle(comment.Body),
+		Author:        comment.Author,
+		IsMira:        IsMiraComment(comment.Author),
 		Body:          ParseBody(comment.Body),
 		Suggestion:    ParseSuggestion(comment.Body),
 		AgentPrompt:   ParseAgentPrompt(comment.Body),
@@ -188,12 +190,23 @@ func ParseMiraComment(comment RawComment) ParsedComment {
 	}
 }
 
-// FilterMiraRootComments keeps only Mira-authored root comments (no reply
-// parent).
-func FilterMiraRootComments(comments []RawComment) []RawComment {
+// FilterMiraRootComments keeps root comments (no reply parent) whose author is
+// a Mira bot or matches one of the additional author logins (case-insensitive
+// exact match).
+func FilterMiraRootComments(comments []RawComment, additionalAuthors ...string) []RawComment {
+	extra := make(map[string]struct{}, len(additionalAuthors))
+	for _, a := range additionalAuthors {
+		if a = strings.TrimSpace(a); a != "" {
+			extra[strings.ToLower(a)] = struct{}{}
+		}
+	}
 	out := make([]RawComment, 0, len(comments))
 	for _, c := range comments {
-		if IsMiraComment(c.Author) && c.ReplyToID == nil {
+		if c.ReplyToID != nil {
+			continue
+		}
+		_, isExtra := extra[strings.ToLower(c.Author)]
+		if IsMiraComment(c.Author) || isExtra {
 			out = append(out, c)
 		}
 	}

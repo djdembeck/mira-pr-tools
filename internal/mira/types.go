@@ -49,6 +49,8 @@ type ParsedComment struct {
 	Severity      Severity `json:"severity"`
 	Title         string   `json:"title"`
 	Body          string   `json:"body"`
+	Author        string   `json:"author"`      // author login of the root comment
+	IsMira        bool     `json:"isMira"`      // true iff IsMiraComment(Author)
 	Suggestion    *string  `json:"suggestion"`  // null when absent
 	AgentPrompt   *string  `json:"agentPrompt"` // null when absent
 	DiffHunk      *string  `json:"diffHunk"`    // null when absent
